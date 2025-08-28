@@ -103,4 +103,11 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// fmt.Printf("Received code: %s, state: %s\n", code, state)
 	
 	fmt.Println("ready to call the other endpoint for access/oauth token")
+	//TODO: send oauth token and get access to everything as a user
 }
+
+//TODO: how to communicate using board api ...
+//TODO: how to keep session open and listen for bot moves
+
+//TODO: how to take over terminal with chess TUI while server runs? I need server to refresh token every now and then
+//TODO; learn concurrency probably

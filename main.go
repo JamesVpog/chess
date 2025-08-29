@@ -40,9 +40,6 @@ func main() {
 	http.HandleFunc("/login", loginHandler)
 	http.HandleFunc("/callback", callbackHandler)
 	log.Fatal(http.ListenAndServe("localhost:8080", nil))
-	
-
-
 }
 
 // sets up user for logging in, will redirect to actual lichess login page
@@ -70,7 +67,7 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Redirect user to consent page to ask for permission
 	// for the scopes specified above.
-	url := conf.AuthCodeURL("state", oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+	url := conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 	
 	// Redirect the user's browser to Lichess's authorization URL 
 	http.Redirect(w, r, url, http.StatusFound)

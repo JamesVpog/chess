@@ -2,10 +2,9 @@ package main
 
 import (
 	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
 	"fmt"
 	"github.com/gorilla/sessions"
+	"golang.org/x/oauth2"
 	"log"
 	"net/http"
 	"os"
@@ -14,8 +13,21 @@ import (
 
 var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
 
-
 const lichessOAuthURL = "https://lichess.org/oauth"
+const lichessTokenURL = "https://lichess.org/api/token"
+
+var conf = &oauth2.Config{
+		ClientID:     "chess_tui",
+		ClientSecret: "",
+		RedirectURL: "http://localhost:8080/callback",
+		Scopes:       []string{"board:play"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  lichessOAuthURL,
+			TokenURL: lichessTokenURL,
+		},
+	}
+
+
 
 func main() {
 
@@ -43,11 +55,10 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 	session, _ := store.Get(r, "session-name")
 
 	// Set some session values.
-	codeVerifier := rand.Text()
-	codeChallenge := generateCodeChallenge(codeVerifier)
+	verifier := oauth2.GenerateVerifier() 
 	state := rand.Text()
 
-	session.Values["code_challenge"] = codeChallenge
+	session.Values["verifier"] = verifier
 	session.Values["state"] = state
 
 	// Save it before we write to the response/return from the handler.
@@ -57,38 +68,12 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Build the lichessOAuthURL with the correct parameters
-	req, err := http.NewRequest(http.MethodGet, lichessOAuthURL, nil)
-	if err != nil {
-	fmt.Printf("client: could not create request: %s\n", err)
-	os.Exit(1)
-	}
-
-	q := req.URL.Query() // Get a copy of the query values.
-	// add values to the set
-	q.Add("response_type", "code") 
-	q.Add("client_id", "chess_tui") 
-	q.Add("redirect_uri", "http://localhost:8080/callback") 
-	q.Add("code_challenge_method", "S256")
-	q.Add("code_challenge",codeChallenge)  
-	q.Add("state", state)
-
-	req.URL.RawQuery = q.Encode() // Encode and assign back to the original query.
- 
+	// Redirect user to consent page to ask for permission
+	// for the scopes specified above.
+	url := conf.AuthCodeURL("state", oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+	
 	// Redirect the user's browser to Lichess's authorization URL 
-	http.Redirect(w, r, req.URL.String(), http.StatusFound)
-
-}
-
-//returns a codeChallenge given a codeVerifier
-func generateCodeChallenge(codeVerifier string) (codeChallenge string) {
-	 
-	h := sha256.New() //create sha256 hash
-
-	h.Write([]byte(codeVerifier)) // hash it  
-
-	// hash it? idk what h.Sum(nil) actually does  and base64encode it
-	return base64.URLEncoding.EncodeToString(h.Sum(nil)) 
+	http.Redirect(w, r, url, http.StatusFound)
 
 }
 
@@ -103,7 +88,10 @@ func callbackHandler(w http.ResponseWriter, r *http.Request) {
 	// fmt.Printf("Received code: %s, state: %s\n", code, state)
 	
 	fmt.Println("ready to call the other endpoint for access/oauth token")
-	//TODO: send oauth token and get access to everything as a user
+	//TODO: send authroization code to lichesTokenURL get access token 
+	
+	
+
 }
 
 //TODO: how to communicate using board api ...

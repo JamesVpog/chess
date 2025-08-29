@@ -1,98 +1,175 @@
 package main
 
 import (
-	"crypto/rand"
+	"encoding/json"
 	"fmt"
-	"github.com/gorilla/sessions"
-	"golang.org/x/oauth2"
-	"log"
-	"net/http"
 	"os"
-	
+
+	"golang.org/x/oauth2"
 )
 
-var store = sessions.NewCookieStore([]byte(os.Getenv("SESSION_KEY")))
+// const lichessOAuthURL = "https://lichess.org/oauth"
+// const lichessTokenURL = "https://lichess.org/api/token"
 
-const lichessOAuthURL = "https://lichess.org/oauth"
-const lichessTokenURL = "https://lichess.org/api/token"
+// var conf = &oauth2.Config{
+// 	ClientID:     "chess_tui",
+// 	ClientSecret: "",
+// 	RedirectURL:  "http://localhost:8080/callback",
+// 	Scopes:       []string{"board:play"},
+// 	Endpoint: oauth2.Endpoint{
+// 		AuthURL:  lichessOAuthURL,
+// 		TokenURL: lichessTokenURL,
+// 	},
+// }
 
-var conf = &oauth2.Config{
-		ClientID:     "chess_tui",
-		ClientSecret: "",
-		RedirectURL: "http://localhost:8080/callback",
-		Scopes:       []string{"board:play"},
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  lichessOAuthURL,
-			TokenURL: lichessTokenURL,
-		},
-	}
-
-
+type TokenData struct {
+	TokenType   string `json:"token_type"`
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int64    `json:"expires_in"`
+}
 
 func main() {
-
-	if os.Getenv("SESSION_KEY") == "" {
-		fmt.Println("Please set up a secure environment variable called SESSION_KEY. See the README for more details")
-		os.Exit(1)
+	//ctx := context.Background()
+	if tokensExist() {
+		tok := loadTokens()
+		
+		fmt.Printf("%s\n%s\n%d\n", tok.AccessToken, tok.TokenType, tok.ExpiresIn)
+		//client := conf.Client(ctx, tok)
+		//TODO: actuall chess stuff with loaded token in client and ctx
+	} else {
+		// Persist for next run
+		tok := loadTokens()
+		fmt.Println(tok)
+		// client := conf.Client(ctx, tok)
+		//TODO: actuall chess stuff with loaded token in client and ctx
 	}
 
-	// temp web server for OAuth2
-	http.HandleFunc("/login", loginHandler)
-	http.HandleFunc("/callback", callbackHandler)
-	log.Fatal(http.ListenAndServe("localhost:8080", nil))
 }
 
-// sets up user for logging in, will redirect to actual lichess login page
-// starts the OAuth2 Authorization Code Flow with PKCE
-func loginHandler(w http.ResponseWriter, r *http.Request) {
+// token.json holds the oauth token necessary for interacting with lichess api
+// checks if token.json file exists
+func tokensExist() bool {
+	_, err := os.Open("token.json")
+	if os.IsNotExist(err) {
+		return false
+	}
+	if os.IsExist(err) && err != nil {
+		panic(err)
+	}
+	return true
+}
 
-	// credit: example code in the github.com/gorilla/sessions README
-	// Get a session. We're ignoring the error resulted from decoding an
-	// existing session: Get() always returns a session, even if empty.
-	session, _ := store.Get(r, "session-name")
-
-	// Set some session values.
-	verifier := oauth2.GenerateVerifier() 
-	state := rand.Text()
-
-	session.Values["verifier"] = verifier
-	session.Values["state"] = state
-
-	// Save it before we write to the response/return from the handler.
-	err := session.Save(r, w)
+// loads token from token.json
+func loadTokens() (token oauth2.Token) {
+	data, err := os.ReadFile("token.json")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
+		panic(err)
+	}
+	var tokenData TokenData
+
+	err = json.Unmarshal(data, &tokenData)
+	if err != nil {
+		panic(err)
 	}
 
-	// Redirect user to consent page to ask for permission
-	// for the scopes specified above.
-	url := conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
-	
-	// Redirect the user's browser to Lichess's authorization URL 
-	http.Redirect(w, r, url, http.StatusFound)
+	token = oauth2.Token{
+		AccessToken: tokenData.AccessToken,
+		TokenType:   tokenData.TokenType,
+		ExpiresIn:   tokenData.ExpiresIn,
+	}
 
+	return
 }
 
-func callbackHandler(w http.ResponseWriter, r *http.Request) {
-	code := r.URL.Query().Get("code")
-	state := r.URL.Query().Get("state")
-	
-	fmt.Println("Authorization succeeded!")
+// // they don't have an oauth token stored, need to go grab it with temporary callback server
+// func getOAuthToken() {
 
-	// writes to the http response so grab that and use for the oauth token
-	fmt.Fprintf(w, "Authorization code: %s\nState: %s", code, state)
-	// fmt.Printf("Received code: %s, state: %s\n", code, state)
-	
-	fmt.Println("ready to call the other endpoint for access/oauth token")
-	//TODO: send authroization code to lichesTokenURL get access token 
-	
-	
+// 	// startTempServer()     // Goroutine with callback handler
+// 	// openBrowser()  // Send user to Lichess
+// 	// waitForCallback()     // Block until token received
+// 	// saveTokensToFile(tok)
+// 	verifier := oauth2.GenerateVerifier()
+// 	state := rand.Text()
 
-}
+// 	// channels communicate values between go routines
+// 	serverReadyChan := make(chan bool)  // indicates when server is ready
+// 	tokChan := make(chan *oauth2.Token) // gets the token
 
-//TODO: how to communicate using board api ...
-//TODO: how to keep session open and listen for bot moves
+// 	// Redirect user to consent page to ask for permission
+// 	url := conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 
-//TODO: how to take over terminal with chess TUI while server runs? I need server to refresh token every now and then
-//TODO; learn concurrency probably
+// 	// go routine calls a function to run asynchronously
+// 	go func() {
+// 		// open temp web server
+// 	}()
+
+// 	// waits for server to be ready
+// 	<-serverReadyChan
+// 	fmt.Println("Temporary server started on localhost:8080")
+
+// 	fmt.Println("Opening browser for authentication...")
+// 	openBrowser(url)
+// 	fmt.Println("Waiting for user to complete authentication...")
+
+// 	// wait for the token to be authenticated
+// 	tok := <-tokChan
+// 	fmt.Println("OAuth complete! Token received")
+
+// 	//RECEIVED TOKEN, do the chess TUI stufff
+// 	fmt.Println(tok)
+
+// 	return
+// }
+
+// // after user authorizes the application to use their account
+// func callbackHandler(w http.ResponseWriter, r *http.Request) {
+// 	code := r.URL.Query().Get("code")
+
+// 	if code == "" {
+// 		fmt.Fprint(w, "Authorization was not successful")
+// 		os.Exit(1)
+// 	}
+
+// 	// writes to the http response so grab that and use for the oauth token
+// 	fmt.Fprint(w, "Authorization was successful! You can close this window and get back to your terminal")
+// 	// fmt.Printf("Received code: %s, state: %s\n", code, state)
+
+// 	fmt.Println("ready to call the other endpoint for access/oauth token")
+
+// 	// send authroization code to lichesTokenURL get access token
+// 	tok, err := conf.Exchange(r.Context(), code, oauth2.VerifierOption(verifier))
+
+// 	// Save the entire token source state
+// 	tokenSource := conf.TokenSource(r.Context(), tok)
+// 	persistedToken, _ := tokenSource.Token() // Get current token
+// 	saveToFile("tokens.json", persistedToken)
+
+// 	if err != nil {
+// 		panic(err)
+// 	}
+
+// }
+
+// // https://www.ziye.dev/posts/go-server-for-oauth-callbacks/
+// func openBrowser(url string) {
+// 	var err error
+
+// 	switch runtime.GOOS {
+// 	case "linux":
+// 		err = exec.Command("xdg-open", url).Start()
+// 	case "windows":
+// 		err = exec.Command("rundll32", "url.dll,FileProtocolHandler", url).Start()
+// 	case "darwin":
+// 		err = exec.Command("open", url).Start()
+// 	default:
+// 		err = fmt.Errorf("unsupported platform")
+// 	}
+// 	if err != nil {
+// 		log.Fatal(err)
+// 	}
+// }
+
+// // saves the token to the json file
+// func saveToFile(filename string, token *oauth2.Token) {
+// 	return
+// }

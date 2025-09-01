@@ -1,4 +1,4 @@
-module chess
+module github.com/JamesVPog/go-chess
 
 go 1.25.0
 

@@ -1,4 +1,4 @@
-# Chess
+# go-chess
 
 I like to play chess, but I don't want to leave my terminal.
 

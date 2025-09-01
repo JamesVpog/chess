@@ -18,7 +18,7 @@ import (
 
 const lichessOAuthURL = "https://lichess.org/oauth"
 const lichessTokenURL = "https://lichess.org/api/token"
-const lichessEmailURL = "https://lichess.org/api/account/email"
+const rapidTV = "https://lichess.org/api/tv/rapid/feed"
 
 var conf = &oauth2.Config{
 	ClientID:     "chess_tui",
@@ -44,12 +44,19 @@ func main() {
 	}
 	tok := loadTokens()
 	client := conf.Client(ctx, &tok)
-	exampleCallToLichessAPIUsingToken(client)
+	featuredTVPrintGame(client)
 
 }
 
-func exampleCallToLichessAPIUsingToken(client *http.Client) {
-	resp, err := client.Get(lichessEmailURL)
+//TODO: how to ingest the most featured game and view in terminal? test for ingesting real game!
+
+// so how do we represent the board in terminal?? how do we turn PEN data into board state? 
+// we need 8x8 grid of 64 squares in the terminal
+
+
+// lets just first figure out how to ingest nd-json continuously
+func featuredTVPrintGame(client *http.Client) {
+	resp, err := client.Get(rapidTV)
 	if err != nil {
 		panic(err)
 	}
@@ -59,7 +66,8 @@ func exampleCallToLichessAPIUsingToken(client *http.Client) {
 	fmt.Println("Response status:", resp.Status)
 
 	scanner := bufio.NewScanner(resp.Body)
-	for i := 0; scanner.Scan() && i < 5; i++ {
+	// until the game ends, keep printing the chess moves
+	for scanner.Scan() {
 		fmt.Println(scanner.Text())
 	}
 
@@ -67,6 +75,7 @@ func exampleCallToLichessAPIUsingToken(client *http.Client) {
 		panic(err)
 	}
 }
+
 
 // token.json holds the oauth token necessary for interacting with lichess api
 // checks if token.json file exists

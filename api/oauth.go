@@ -1,7 +1,6 @@
-package main
+package api
 
 import (
-	"bufio"
 	"context"
 	"crypto/rand"
 	"encoding/json"
@@ -18,9 +17,8 @@ import (
 
 const lichessOAuthURL = "https://lichess.org/oauth"
 const lichessTokenURL = "https://lichess.org/api/token"
-const rapidTV = "https://lichess.org/api/tv/rapid/feed"
 
-var conf = &oauth2.Config{
+var Conf = &oauth2.Config{
 	ClientID:     "chess_tui",
 	ClientSecret: "",
 	RedirectURL:  "http://localhost:8080/callback",
@@ -37,49 +35,9 @@ type TokenData struct {
 	ExpiresIn   int64  `json:"expires_in"`
 }
 
-func main() {
-	ctx := context.Background()
-	if !tokensExist() {
-		getOAuthToken()
-	}
-	tok := loadTokens()
-	client := conf.Client(ctx, &tok)
-	featuredTVPrintGame(client)
-
-}
-
-//TODO: how to ingest the most featured game and view in terminal? test for ingesting real game!
-
-// so how do we represent the board in terminal?? how do we turn PEN data into board state? 
-// we need 8x8 grid of 64 squares in the terminal
-
-
-// lets just first figure out how to ingest nd-json continuously
-func featuredTVPrintGame(client *http.Client) {
-	resp, err := client.Get(rapidTV)
-	if err != nil {
-		panic(err)
-	}
-
-	defer resp.Body.Close()
-
-	fmt.Println("Response status:", resp.Status)
-
-	scanner := bufio.NewScanner(resp.Body)
-	// until the game ends, keep printing the chess moves
-	for scanner.Scan() {
-		fmt.Println(scanner.Text())
-	}
-
-	if err := scanner.Err(); err != nil {
-		panic(err)
-	}
-}
-
-
 // token.json holds the oauth token necessary for interacting with lichess api
 // checks if token.json file exists
-func tokensExist() bool {
+func TokensExist() bool {
 	_, err := os.Open("token.json")
 	if os.IsNotExist(err) {
 		return false
@@ -91,7 +49,7 @@ func tokensExist() bool {
 }
 
 // loads token from token.json
-func loadTokens() (token oauth2.Token) {
+func LoadTokens() (token oauth2.Token) {
 	data, err := os.ReadFile("token.json")
 	if err != nil {
 		panic(err)
@@ -114,13 +72,13 @@ func loadTokens() (token oauth2.Token) {
 
 // they don't have an oauth token stored, need to go grab it with temporary callback server
 // save to the token.json
-func getOAuthToken() {
+func GetOAuthToken() {
 
 	verifier := oauth2.GenerateVerifier()
 	state := rand.Text()
 
 	// user login URL
-	url := conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
+	url := Conf.AuthCodeURL(state, oauth2.AccessTypeOffline, oauth2.S256ChallengeOption(verifier))
 
 	// channels communicate values between go routines
 	tokChan := make(chan *oauth2.Token) // gets the token
@@ -136,7 +94,7 @@ func getOAuthToken() {
 			os.Exit(1)
 		}
 
-		tok, err := conf.Exchange(r.Context(), code, oauth2.VerifierOption(verifier))
+		tok, err := Conf.Exchange(r.Context(), code, oauth2.VerifierOption(verifier))
 		if err != nil {
 			fmt.Fprintf(w, "Error: %v", err)
 			return

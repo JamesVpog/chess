@@ -28,8 +28,6 @@ func main() {
 	client := api.Conf.Client(ctx, &tok)
 	featuredTVPrintGame(client)
 
-	// building the UI for the chess game
-
 }
 
 //TODO: how to ingest the most featured game and view in terminal? test for ingesting real game!
